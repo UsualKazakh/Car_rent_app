@@ -1,269 +1,169 @@
 import 'package:flutter/material.dart';
-import 'models/car.dart';
-import 'screens/car_detail_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import 'pages/home_page.dart';
+import 'pages/autopark_page.dart';
+import 'pages/user_page.dart';
+import 'pages/car_details_page.dart';
+import 'pages/booking_page.dart';
+import 'pages/settings_page.dart';
+import 'pages/admin_page.dart';
+import 'services/database_helper.dart';
+import 'theme/app_theme.dart';
+import 'providers/language_provider.dart';
+import 'providers/app_text_provider.dart';
+import 'l10n/app_localizations.dart';
 
-void main() {
-  runApp(const CarRentalApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseHelper.instance.database;
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => AppTextProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class CarRentalApp extends StatelessWidget {
-  const CarRentalApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isDarkMode = false;
+
+  void _toggleTheme(bool isDark) {
+    setState(() {
+      _isDarkMode = isDark;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final locale = context.watch<LanguageProvider>().currentLocale;
+    final l10n = AppLocalizations.of(context);
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Car Rental',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
+      locale: locale,
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ru'),
+        Locale('kk'),
+      ],
+      localizationsDelegates: const [
+        AppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      localeResolutionCallback: (deviceLocale, supportedLocales) {
+        for (var locale in supportedLocales) {
+          if (locale.languageCode == deviceLocale?.languageCode) {
+            return deviceLocale;
+          }
+        }
+        return const Locale('ru');
+      },
+      title: l10n.appTitle,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: MainScreen(
+        isDarkMode: _isDarkMode,
+        onThemeChanged: _toggleTheme,
       ),
-      home: const CarListScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class CarListScreen extends StatelessWidget {
-  const CarListScreen({super.key});
+class MainScreen extends StatefulWidget {
+  final bool isDarkMode;
+  final ValueChanged<bool> onThemeChanged;
+  const MainScreen({super.key, required this.isDarkMode, required this.onThemeChanged});
 
-  // Статические данные для машин
-  static final List<Car> cars = [
-    Car(
-      id: '1',
-      name: 'BMW X5',
-      brand: 'BMW',
-      model: 'X5',
-      imageAsset: 'assets/bmw.png',
-      price: 100.0,
-      description: 'Luxury SUV with premium features',
-      features: ['Leather seats', 'Panoramic roof', 'Navigation'],
-      transmission: 'Automatic',
-      seats: 5,
-      fuelType: 'Petrol',
-      rating: 4.5,
-    ),
-    Car(
-      id: '2',
-      name: 'Audi Q7',
-      brand: 'Audi',
-      model: 'Q7',
-      imageAsset: 'assets/audi.png',
-      price: 120.0,
-      description: 'Premium SUV with advanced technology',
-      features: ['7 seats', 'LED lights', 'Quattro'],
-      transmission: 'Automatic',
-      seats: 7,
-      fuelType: 'Diesel',
-      rating: 4.8,
-    ),
-    Car(
-      id: '3',
-      name: 'Tesla Model 3',
-      brand: 'Tesla',
-      model: 'Model 3',
-      imageAsset: 'assets/tesla.png',
-      price: 90.0,
-      description: 'Electric sedan with autopilot',
-      features: ['Autopilot', 'Electric', 'Glass roof'],
-      transmission: 'Automatic',
-      seats: 5,
-      fuelType: 'Electric',
-      rating: 4.7,
-    ),
-    Car(
-      id: '4',
-      name: 'Kia Sportage',
-      brand: 'Kia',
-      model: 'Sportage',
-      imageAsset: 'assets/kia.png',
-      price: 70.0,
-      description: 'Compact SUV with great value',
-      features: ['Apple CarPlay', 'Android Auto', 'Parking sensors'],
-      transmission: 'Automatic',
-      seats: 5,
-      fuelType: 'Petrol',
-      rating: 4.2,
-    ),
-  ];
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0;
+  final List<Widget> _screens = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _screens.addAll([
+      const HomePage(),
+      const AutoparkPage(),
+      const UserPage(),
+      const AdminPage(),
+    ]);
+  }
+
+  void _openSettings(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          isDarkMode: widget.isDarkMode,
+          onThemeChanged: (value) {
+            widget.onThemeChanged(value);
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // Заголовок с прокручиваемым баннером
-          SliverAppBar(
-            expandedHeight: 200.0,
-            floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: const Text('Car Rental'),
-              background: Image.asset(
-                'assets/bmw.png',
-                fit: BoxFit.cover,
-              ),
-            ),
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: l10n.home,
           ),
-          // Раздел Featured Cars (горизонтальный ListView)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Featured Cars',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 200,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: cars.length,
-                      itemBuilder: (context, index) {
-                        final car = cars[index];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CarDetailScreen(car: car),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 160,
-                            margin: const EdgeInsets.only(right: 16),
-                            child: Card(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Image.asset(
-                                    car.imageAsset,
-                                    height: 100,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          car.name,
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
-                                        ),
-                                        Text('\$${car.price}/day'),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          NavigationDestination(
+            icon: const Icon(Icons.directions_car_outlined),
+            selectedIcon: const Icon(Icons.directions_car),
+            label: l10n.autopark,
           ),
-          // Раздел All Cars (ListView.builder)
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                final car = cars[index];
-                return ListTile(
-                  leading: Image.asset(
-                    car.imageAsset,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                  ),
-                  title: Text(car.name),
-                  subtitle: Text('\$${car.price}/day'),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CarDetailScreen(car: car),
-                      ),
-                    );
-                  },
-                );
-              },
-              childCount: cars.length,
-            ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: l10n.profile,
           ),
-          // Раздел GridView (сетка машин)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'All Cars (Grid View)',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 400,
-                    child: GridView.builder(
-                      physics: const ClampingScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                        childAspectRatio: 0.8,
-                      ),
-                      itemCount: cars.length,
-                      itemBuilder: (context, index) {
-                        final car = cars[index];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CarDetailScreen(car: car),
-                              ),
-                            );
-                          },
-                          child: Card(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Image.asset(
-                                  car.imageAsset,
-                                  height: 100,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        car.name,
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
-                                      ),
-                                      Text('\$${car.price}/day'),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          NavigationDestination(
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: const Icon(Icons.admin_panel_settings),
+            label: l10n.admin,
+          ),
+        ],
+      ),
+      appBar: AppBar(
+        title: const Text('Аренда авто'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => _openSettings(context),
           ),
         ],
       ),
